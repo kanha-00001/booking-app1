@@ -1,0 +1,71 @@
+CREATE TABLE place (
+    id SERIAL PRIMARY KEY,
+    owner UUID REFERENCES registration(id),  -- Assuming 'users' is the table for the User model
+    title VARCHAR(255),
+    address VARCHAR(255),
+    photos TEXT[],  -- Array of strings
+    description TEXT,
+    perks TEXT[],   -- Array of strings
+    extra_info TEXT,
+    check_in INTEGER,
+    check_out INTEGER,
+    max_guests INTEGER,
+    price DECIMAL(10, 7)  -- Price can be a decimal value with 2 decimal places
+);
+
+
+app.post("/places", async (req, res) => {
+  try {
+    const { token } = req.cookies;
+
+    if (!token) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    const decoded = jwt.verify(token, process.env.jwtsecret);
+
+    const userResult = await db.query(
+      "SELECT id FROM registration WHERE email = $1",
+      [decoded.email]
+    );
+
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    const userId = userResult.rows[0].id;
+
+    const {
+      title,
+      address,
+      addedPhotos,
+      description,
+      perks,
+      extraInfo,
+      checkIn,
+      checkOut,
+      maxGuests,
+    } = req.body;
+
+    const placeDocu = await db.query(
+      "INSERT INTO place (owner, title, adress, photos, description, perks, extra_info, check_in, check_out, max_guests) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *",
+      [
+        userId,
+        title,
+        address,
+        addedPhotos,
+        description,
+        perks,
+        extraInfo,
+        checkIn,
+        checkOut,
+        maxGuests,
+      ]
+    );
+
+    res.status(201).json({ place: placeDocu.rows[0] });
+  } catch (error) {
+    console.error("Error:", error);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
